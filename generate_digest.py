@@ -13,7 +13,11 @@ Usage:
 import argparse
 import logging
 import os
+import smtplib
+import ssl
 from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
 
 import anthropic
@@ -115,6 +119,42 @@ def save_digest(text: str, output_dir: str, date_from: str) -> Path:
 
 
 # ---------------------------------------------------------------------------
+# Send email
+# ---------------------------------------------------------------------------
+
+def send_digest_email(digest_text: str, subject: str, to_addr: str) -> None:
+    """Send the generated digest via email (plain text + HTML).
+    Reads MAIL_USERNAME and MAIL_PASSWORD from environment variables.
+    """
+    username = os.environ.get("MAIL_USERNAME")
+    password = os.environ.get("MAIL_PASSWORD")
+    if not username or not password:
+        log.warning("MAIL_USERNAME / MAIL_PASSWORD not set — skipping email.")
+        return
+
+    # Simple markdown → HTML: wrap in <pre> for readability
+    body_html = (
+        "<html><body>"
+        "<pre style='font-family:Arial,sans-serif;font-size:14px;white-space:pre-wrap'>"
+        + digest_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        + "</pre></body></html>"
+    )
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"]    = f"newspop-bot <{username}>"
+    msg["To"]      = to_addr
+    msg.attach(MIMEText(digest_text, "plain", "utf-8"))
+    msg.attach(MIMEText(body_html,   "html",  "utf-8"))
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as smtp:
+        smtp.login(username, password)
+        smtp.sendmail(username, to_addr, msg.as_string())
+    log.info("Digest email sent to %s", to_addr)
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -123,6 +163,8 @@ def main():
     parser.add_argument("--data-dir",   default="data",  help="Directory with parquet files")
     parser.add_argument("--output-dir", default="posts", help="Output directory for markdown")
     parser.add_argument("--parquet",    default=None,    help="Use a specific parquet file")
+    parser.add_argument("--send-email", action="store_true", help="Send digest via email")
+    parser.add_argument("--email-to",   default="n.barban@unibo.it", help="Recipient email address")
     args = parser.parse_args()
 
     # Load data
@@ -154,6 +196,11 @@ def main():
 
     # Save
     save_digest(digest_text, args.output_dir, date_from_fmt)
+
+    # Optionally send by email
+    if args.send_email:
+        subject = f"[newspop] Rassegna stampa fertilità — {date_from_fmt} / {date_to_fmt}"
+        send_digest_email(digest_text, subject, args.email_to)
 
 
 if __name__ == "__main__":

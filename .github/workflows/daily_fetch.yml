@@ -46,11 +46,18 @@ jobs:
             --send-email \
             --email-to n.barban@unibo.it
 
-      # 6. Genera la rassegna stampa con Claude API
+      # 6. Genera la rassegna stampa con Claude API e invia per email
       - name: Generate digest with Claude
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: python generate_digest.py --data-dir data --output-dir posts
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+        run: |
+          python generate_digest.py \
+            --data-dir data \
+            --output-dir posts \
+            --send-email \
+            --email-to n.barban@unibo.it
 
       # 7. Commit automatico dei risultati in data/ e posts/
       - name: Commit results
