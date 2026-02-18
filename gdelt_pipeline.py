@@ -59,7 +59,7 @@ def build_query(config: dict) -> str:
         for k in config.get("keywords", [])
     )
 
-    where_parts = [f"DATE >= '{date_from}'", f"DATE <= '{date_to}'"]
+    where_parts = [f"DATE >= {date_from}", f"DATE <= {date_to}"]
     filters = []
     if theme_clauses:
         filters.append(f"({theme_clauses})")
@@ -80,7 +80,7 @@ SELECT
   Locations                                    AS locations,
   Persons                                      AS persons,
   Organizations                                AS organizations,
-  SPLIT(Tone, ',')[OFFSET(0)]                  AS tone,
+  SPLIT(V2Tone, ',')[SAFE_OFFSET(0)]           AS tone,
   TranslationInfo                              AS translation_info
 FROM `{GDELT_GKG_TABLE}`
 WHERE {where_sql}
