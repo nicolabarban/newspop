@@ -33,39 +33,20 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # 5. Esegui il pipeline (ultime 24 ore, solo testo italiano)
-      - name: Run GDELT pipeline
+      # 5. Esegui il pipeline, scarica full text e invia email digest
+      - name: Run GDELT pipeline + send email
+        env:
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
         run: |
           python gdelt_pipeline.py \
             --config config.actions.json \
             --auto-dates \
-            --days 1
+            --days 1 \
+            --send-email \
+            --email-to n.barban@unibo.it
 
-      # 6. Prepara e invia email con il sommario degli articoli trovati
-      - name: Prepare email content
-        id: email
-        run: |
-          echo "subject=$(cat data/latest_subject.txt)" >> $GITHUB_OUTPUT
-          {
-            echo 'body<<EOF'
-            cat data/latest_body.txt
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
-
-      - name: Send email digest
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-          username: ${{ secrets.MAIL_USERNAME }}
-          password: ${{ secrets.MAIL_PASSWORD }}
-          to: n.barban@unibo.it
-          from: newspop-bot <${{ secrets.MAIL_USERNAME }}>
-          subject: ${{ steps.email.outputs.subject }}
-          body: ${{ steps.email.outputs.body }}
-
-      # 7. Commit automatico dei risultati in data/
+      # 6. Commit automatico dei risultati in data/
       - name: Commit results
         run: |
           git config user.email "actions@github.com"

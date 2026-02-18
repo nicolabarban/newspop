@@ -6,20 +6,26 @@ Steps:
   2. Filter by themes and/or keywords
   3. Download full text with trafilatura
   4. Save results to CSV/Parquet
+  5. (optional) Send email digest via SMTP
 
 Usage:
   cp config.example.json config.json   # edit with your GCP project id
   python gdelt_pipeline.py --config config.json
   python gdelt_pipeline.py --config config.json --no-fulltext  # skip text download
+  python gdelt_pipeline.py --config config.actions.json --auto-dates --send-email
 """
 
 import argparse
 import json
 import logging
 import os
+import smtplib
+import ssl
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
 
 import pandas as pd
@@ -218,13 +224,35 @@ def build_email_summary(df: pd.DataFrame, date_from: str, date_to: str) -> tuple
 
 
 def write_summary_file(subject: str, body_plain: str, output_dir: str) -> None:
-    """Write subject and body to separate files for GitHub Actions email step."""
+    """Write subject and body to separate files."""
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    subject_path = Path(output_dir) / "latest_subject.txt"
-    body_path    = Path(output_dir) / "latest_body.txt"
-    subject_path.write_text(subject)
-    body_path.write_text(body_plain)
-    log.info("Email summary written → %s / %s", subject_path, body_path)
+    (Path(output_dir) / "latest_subject.txt").write_text(subject)
+    (Path(output_dir) / "latest_body.txt").write_text(body_plain)
+    log.info("Email summary written to %s/latest_*.txt", output_dir)
+
+
+def send_email(subject: str, body_plain: str, to_addr: str) -> None:
+    """Send email digest via SMTP. Reads credentials from environment variables:
+      MAIL_USERNAME  — sender Gmail address
+      MAIL_PASSWORD  — Gmail App Password (not the account password)
+    """
+    username = os.environ.get("MAIL_USERNAME")
+    password = os.environ.get("MAIL_PASSWORD")
+    if not username or not password:
+        log.warning("MAIL_USERNAME / MAIL_PASSWORD not set — skipping email.")
+        return
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"]    = f"newspop-bot <{username}>"
+    msg["To"]      = to_addr
+    msg.attach(MIMEText(body_plain, "plain", "utf-8"))
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as smtp:
+        smtp.login(username, password)
+        smtp.sendmail(username, to_addr, msg.as_string())
+    log.info("Email sent to %s", to_addr)
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +266,8 @@ def main():
     parser.add_argument("--output-dir",  default=None,          help="Override output directory")
     parser.add_argument("--auto-dates",  action="store_true",   help="Auto set dates to last N days")
     parser.add_argument("--days",        type=int, default=1,   help="Number of days back for --auto-dates (default: 1)")
+    parser.add_argument("--send-email",  action="store_true",   help="Send email digest (needs MAIL_USERNAME and MAIL_PASSWORD env vars)")
+    parser.add_argument("--email-to",    default="n.barban@unibo.it", help="Recipient email address")
     args = parser.parse_args()
 
     # Load config
@@ -272,11 +302,13 @@ def main():
     # 3. Save
     save_results(df, output_dir)
 
-    # 4. Write email summary file (read by GitHub Actions email step)
+    # 4. Build email summary and optionally send
     subject, body_plain, _ = build_email_summary(
         df, config["date_from"], config["date_to"]
     )
     write_summary_file(subject, body_plain, output_dir)
+    if args.send_email:
+        send_email(subject, body_plain, args.email_to)
 
 
 if __name__ == "__main__":
