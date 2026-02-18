@@ -118,7 +118,7 @@ def run_bigquery(config: dict) -> pd.DataFrame:
     log.info("Running BigQuery query:\n%s", query)
     job = client.query(query)
     log.info("Query job id: %s — waiting for results...", job.job_id)
-    df = job.to_dataframe(progress_bar_type="tqdm")
+    df = job.to_dataframe(progress_bar_type="tqdm", create_bqstorage_client=False)
     log.info("Retrieved %d rows from GDELT.", len(df))
     return df
 
@@ -183,6 +183,50 @@ def save_results(df: pd.DataFrame, output_dir: str, tag: str = "") -> None:
     log.info("Saved %d rows → %s", len(df), parquet_path)
 
 
+def build_email_summary(df: pd.DataFrame, date_from: str, date_to: str) -> tuple[str, str]:
+    """Build plain-text + HTML email summary of the daily fetch results."""
+    df_ok = df[df["full_text"].notna()]
+    total = len(df)
+    with_text = len(df_ok)
+
+    lines_plain = [
+        f"GDELT Daily Digest — {date_from} → {date_to}",
+        f"Articoli trovati: {total}  |  Con full text: {with_text}",
+        "=" * 60,
+    ]
+    lines_html = [
+        f"<h2>GDELT Daily Digest — {date_from} → {date_to}</h2>",
+        f"<p><b>Articoli trovati:</b> {total} &nbsp;|&nbsp; <b>Con full text:</b> {with_text}</p>",
+        "<hr>",
+    ]
+
+    for _, r in df_ok.iterrows():
+        snippet = str(r["full_text"])[:300].replace("\n", " ").strip()
+        plain_entry = f"\n[{r['source']}]\n{r['url']}\n{snippet}...\n"
+        html_entry = (
+            f"<p><b>[{r['source']}]</b><br>"
+            f"<a href='{r['url']}'>{r['url'][:80]}</a><br>"
+            f"{snippet}...</p><hr>"
+        )
+        lines_plain.append(plain_entry)
+        lines_html.append(html_entry)
+
+    subject = f"[newspop] {total} articoli su fertilità — {date_from}"
+    body_plain = "\n".join(lines_plain)
+    body_html  = "\n".join(lines_html)
+    return subject, body_plain, body_html
+
+
+def write_summary_file(subject: str, body_plain: str, output_dir: str) -> None:
+    """Write subject and body to separate files for GitHub Actions email step."""
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    subject_path = Path(output_dir) / "latest_subject.txt"
+    body_path    = Path(output_dir) / "latest_body.txt"
+    subject_path.write_text(subject)
+    body_path.write_text(body_plain)
+    log.info("Email summary written → %s / %s", subject_path, body_path)
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -227,6 +271,12 @@ def main():
 
     # 3. Save
     save_results(df, output_dir)
+
+    # 4. Write email summary file (read by GitHub Actions email step)
+    subject, body_plain, _ = build_email_summary(
+        df, config["date_from"], config["date_to"]
+    )
+    write_summary_file(subject, body_plain, output_dir)
 
 
 if __name__ == "__main__":

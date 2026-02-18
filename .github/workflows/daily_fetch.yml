@@ -41,7 +41,25 @@ jobs:
             --auto-dates \
             --days 1
 
-      # 6. Commit automatico dei risultati in data/
+      # 6. Invia email con il sommario degli articoli trovati
+      - name: Read email subject
+        id: email_subject
+        run: echo "subject=$(cat data/latest_subject.txt)" >> $GITHUB_OUTPUT
+
+      - name: Send email digest
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          to: n.barban@unibo.it
+          from: newspop-bot <${{ secrets.MAIL_USERNAME }}>
+          subject: ${{ steps.email_subject.outputs.subject }}
+          body_filepath: data/latest_body.txt
+
+      # 7. Commit automatico dei risultati in data/
       - name: Commit results
         run: |
           git config user.email "actions@github.com"
