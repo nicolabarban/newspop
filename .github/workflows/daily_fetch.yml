@@ -41,10 +41,16 @@ jobs:
             --auto-dates \
             --days 1
 
-      # 6. Invia email con il sommario degli articoli trovati
-      - name: Read email subject
-        id: email_subject
-        run: echo "subject=$(cat data/latest_subject.txt)" >> $GITHUB_OUTPUT
+      # 6. Prepara e invia email con il sommario degli articoli trovati
+      - name: Prepare email content
+        id: email
+        run: |
+          echo "subject=$(cat data/latest_subject.txt)" >> $GITHUB_OUTPUT
+          {
+            echo 'body<<EOF'
+            cat data/latest_body.txt
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
 
       - name: Send email digest
         uses: dawidd6/action-send-mail@v3
@@ -56,8 +62,8 @@ jobs:
           password: ${{ secrets.MAIL_PASSWORD }}
           to: n.barban@unibo.it
           from: newspop-bot <${{ secrets.MAIL_USERNAME }}>
-          subject: ${{ steps.email_subject.outputs.subject }}
-          body_filepath: data/latest_body.txt
+          subject: ${{ steps.email.outputs.subject }}
+          body: ${{ steps.email.outputs.body }}
 
       # 7. Commit automatico dei risultati in data/
       - name: Commit results
