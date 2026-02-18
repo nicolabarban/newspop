@@ -1,0 +1,43 @@
+---
+layout: default
+---
+
+<div class="container">
+
+  <div class="section-header">
+    <span class="section-title">Ultime rassegne</span>
+    <span class="section-subtitle">Aggiornato ogni lunedì</span>
+  </div>
+
+  {% if site.posts.size == 0 %}
+  <div class="empty-state">
+    <div class="empty-icon">📰</div>
+    <p>La prima rassegna stampa sarà pubblicata lunedì prossimo.</p>
+  </div>
+  {% else %}
+
+  <div class="posts-grid">
+    {% for post in site.posts %}
+    <article class="post-card {% if forloop.first %}post-card--featured{% endif %}">
+      <div class="post-card-meta">
+        <time datetime="{{ post.date | date_to_xmlschema }}">
+          {{ post.date | date: "%-d %B %Y" }}
+        </time>
+        <span class="post-badge">Rassegna Stampa</span>
+      </div>
+      <h2 class="post-card-title">
+        <a href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a>
+      </h2>
+      <p class="post-card-excerpt">
+        {{ post.content | strip_html | truncatewords: 55 }}
+      </p>
+      <a href="{{ post.url | prepend: site.baseurl }}" class="post-card-link">
+        Leggi la rassegna <span aria-hidden="true">→</span>
+      </a>
+    </article>
+    {% endfor %}
+  </div>
+
+  {% endif %}
+
+</div>

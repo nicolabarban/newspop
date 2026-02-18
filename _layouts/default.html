@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if page.title %}{{ page.title }} — {% endif %}{{ site.title }}</title>
+  <meta name="description" content="{% if page.excerpt %}{{ page.excerpt | strip_html | truncatewords: 30 }}{% else %}{{ site.description }}{% endif %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Lora:ital,wght@0,400;0,500;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ '/assets/css/style.css' | prepend: site.baseurl }}">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="header-top">
+        <span class="header-tagline">{{ site.description }}</span>
+        <span class="header-date" id="current-date"></span>
+      </div>
+      <div class="header-logo">
+        <a href="{{ '/' | prepend: site.baseurl }}">{{ site.title }}</a>
+      </div>
+      <nav class="header-nav">
+        <a href="{{ '/' | prepend: site.baseurl }}">Rassegne</a>
+        <a href="https://github.com/nicolabarban/newspop" target="_blank">GitHub</a>
+      </nav>
+    </div>
+    <div class="header-accent-bar"></div>
+  </header>
+
+  <main>
+    {{ content }}
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <p>
+        © {{ site.time | date: "%Y" }} <strong>DemoRumors</strong> &nbsp;·&nbsp;
+        Generato automaticamente da <a href="https://www.gdeltproject.org/" target="_blank">GDELT</a>
+        e <a href="https://www.anthropic.com/" target="_blank">Claude AI</a> &nbsp;·&nbsp;
+        <a href="https://github.com/nicolabarban/newspop" target="_blank">Codice sorgente</a>
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    const d = new Date();
+    document.getElementById('current-date').textContent =
+      d.toLocaleDateString('it-IT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,20 @@
+title: DemoRumors
+description: Rassegna stampa settimanale su fertilità e calo demografico in Europa
+baseurl: "/newspop"
+url: "https://nicolabarban.github.io"
+
+markdown: kramdown
+kramdown:
+  input: GFM
+  hard_wrap: false
+
+permalink: /:year/:month/:day/:title/
+
+plugins:
+  - jekyll-feed
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor

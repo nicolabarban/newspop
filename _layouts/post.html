@@ -1,0 +1,33 @@
+---
+layout: default
+---
+
+<div class="container">
+  <article class="post">
+
+    <header class="post-header">
+      <div class="post-meta">
+        <time datetime="{{ page.date | date_to_xmlschema }}">
+          {{ page.date | date: "%-d %B %Y" }}
+        </time>
+        <span class="post-badge">Rassegna Stampa</span>
+      </div>
+      <h1 class="post-title">{{ page.title }}</h1>
+      <div class="post-divider"></div>
+    </header>
+
+    <div class="post-content">
+      {{ content }}
+    </div>
+
+    <footer class="post-footer">
+      <p class="post-footer-note">
+        Rassegna generata automaticamente da fonti italiane indicizzate da
+        <a href="https://www.gdeltproject.org/" target="_blank">GDELT</a> ·
+        Sintesi a cura di <a href="https://www.anthropic.com/" target="_blank">Claude AI</a>
+      </p>
+      <a href="{{ '/' | prepend: site.baseurl }}" class="back-link">← Tutte le rassegne</a>
+    </footer>
+
+  </article>
+</div>
