@@ -46,11 +46,17 @@ jobs:
             --send-email \
             --email-to n.barban@unibo.it
 
-      # 6. Commit automatico dei risultati in data/
+      # 6. Genera la rassegna stampa con Claude API
+      - name: Generate digest with Claude
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python generate_digest.py --data-dir data --output-dir posts
+
+      # 7. Commit automatico dei risultati in data/ e posts/
       - name: Commit results
         run: |
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions Bot"
-          git add data/
-          git diff --staged --quiet || git commit -m "Daily fetch $(date -u +%Y-%m-%d)"
+          git add data/ posts/
+          git diff --staged --quiet || git commit -m "Daily fetch + digest $(date -u +%Y-%m-%d)"
           git push
