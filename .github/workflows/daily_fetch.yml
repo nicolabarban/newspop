@@ -42,7 +42,7 @@ jobs:
           python gdelt_pipeline.py \
             --config config.actions.json \
             --auto-dates \
-            --days 1 \
+            --days 3 \
             --send-email \
             --email-to n.barban@unibo.it
 
