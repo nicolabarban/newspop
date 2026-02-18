@@ -1,0 +1,12 @@
+{
+  "project_id": "your-gcp-project-id",
+  "keywords": ["fertility", "birth rate", "demographic decline", "population decline", "calo demografico", "denatalité", "Geburtenrückgang", "natalidad"],
+  "gdelt_themes": ["FERTILITY", "POPULATION_DECLINE", "ECON_BIRTHRATE"],
+  "date_from": "2024-01-01",
+  "date_to": "2024-12-31",
+  "languages": [],
+  "max_articles": 5000,
+  "output_dir": "data",
+  "full_text": true,
+  "full_text_workers": 8
+}

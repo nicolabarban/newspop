@@ -1,0 +1,9 @@
+google-cloud-bigquery
+google-cloud-bigquery-storage
+pandas
+pandas-gbq
+pyarrow
+trafilatura
+tqdm
+requests
+python-dotenv
