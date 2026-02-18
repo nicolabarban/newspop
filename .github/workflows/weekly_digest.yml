@@ -54,11 +54,58 @@ jobs:
             --send-email \
             --email-to n.barban@unibo.it
 
-      # 7. Commit automatico del post in posts/
-      - name: Commit digest
+      # 7. Commit automatico del post in data/ e posts/
+      - name: Commit digest to main
         run: |
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions Bot"
           git add data/ posts/
           git diff --staged --quiet || git commit -m "Weekly digest $(date -u +%Y-%m-%d)"
           git push
+
+      # 8. Pubblica il post sul blog DemoRumors (branch gh-pages)
+      - name: Publish to DemoRumors blog (gh-pages)
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          LATEST=$(ls -t posts/*_digest.md | head -1)
+
+          # Crea il post Jekyll con front matter (usa Python per gestire caratteri speciali)
+          python3 - <<PYEOF
+          import pathlib, sys
+
+          date = "$DATE"
+          src  = pathlib.Path("$LATEST").read_text(encoding="utf-8")
+          lines = src.split("\n")
+
+          # Estrai titolo dall'H1
+          title = lines[0].lstrip("# ").strip() if lines and lines[0].startswith("# ") else "Rassegna Stampa"
+          title_esc = title.replace('"', '\\"')
+
+          # Corpo senza la riga H1
+          body = "\n".join(lines[1:]).lstrip("\n")
+
+          front = f"""---
+          layout: post
+          title: "{title_esc}"
+          date: {date}
+          ---
+
+          """
+          import textwrap
+          front = textwrap.dedent(front)
+
+          pathlib.Path("/tmp/jekyll_post.md").write_text(front + body, encoding="utf-8")
+          print(f"Jekyll post created: {title}")
+          PYEOF
+
+          # Passa a gh-pages, copia il post, committa e torna a main
+          git fetch origin gh-pages
+          git checkout gh-pages
+
+          cp /tmp/jekyll_post.md "_posts/${DATE}-digest.md"
+
+          git add "_posts/${DATE}-digest.md"
+          git diff --staged --quiet || git commit -m "Add weekly digest ${DATE}"
+          git push origin gh-pages
+
+          git checkout main
