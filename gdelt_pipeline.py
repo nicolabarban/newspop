@@ -60,6 +60,28 @@ def build_query(config: dict) -> str:
     )
 
     where_parts = [f"DATE >= {date_from}", f"DATE <= {date_to}"]
+
+    # Language filter: match srclc:<lang_code> in TranslationInfo OR .it/ domain
+    # GDELT language codes: ita=Italian, deu=German, fra=French, spa=Spanish, etc.
+    lang_map = {
+        "Italian": ("ita", ".it/"),
+        "German":  ("deu", ".de/"),
+        "French":  ("fra", ".fr/"),
+        "Spanish": ("spa", ".es/"),
+        "Portuguese": ("por", ".pt/"),
+    }
+    lang_list = config.get("languages", [])
+    if lang_list:
+        lang_clauses = []
+        for lang in lang_list:
+            if lang in lang_map:
+                code, tld = lang_map[lang]
+                lang_clauses.append(
+                    f"(TranslationInfo LIKE '%srclc:{code}%' OR DocumentIdentifier LIKE '%{tld}%')"
+                )
+        if lang_clauses:
+            where_parts.append("(" + " OR ".join(lang_clauses) + ")")
+
     filters = []
     if theme_clauses:
         filters.append(f"({theme_clauses})")
