@@ -1,0 +1,51 @@
+name: Daily GDELT Fetch
+
+on:
+  schedule:
+    - cron: '0 5 * * *'   # ogni giorno alle 05:00 UTC (07:00 ora italiana)
+  workflow_dispatch:        # run manuale dal sito GitHub (tasto "Run workflow")
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # necessario per il commit automatico dei risultati
+
+    steps:
+      # 1. Scarica il codice del repo
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # 2. Installa Python 3.12
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      # 3. Installa dipendenze
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # 4. Autentica Google Cloud con Service Account
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      # 5. Esegui il pipeline (ultime 24 ore, solo testo italiano)
+      - name: Run GDELT pipeline
+        run: |
+          python gdelt_pipeline.py \
+            --config config.actions.json \
+            --auto-dates \
+            --days 1
+
+      # 6. Commit automatico dei risultati in data/
+      - name: Commit results
+        run: |
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions Bot"
+          git add data/
+          git diff --staged --quiet || git commit -m "Daily fetch $(date -u +%Y-%m-%d)"
+          git push

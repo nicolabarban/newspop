@@ -8,11 +8,13 @@ build/
 venv/
 env/
 
-# Data
-*.csv
-*.parquet
+# Data files outside data/ dir
 *.json
 !config.example.json
+!config.actions.json
+
+# Credentials
+config.json
 
 # Credentials
 *.key

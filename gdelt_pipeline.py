@@ -192,11 +192,23 @@ def main():
     parser.add_argument("--config",      default="config.json", help="Path to config JSON")
     parser.add_argument("--no-fulltext", action="store_true",   help="Skip full text download")
     parser.add_argument("--output-dir",  default=None,          help="Override output directory")
+    parser.add_argument("--auto-dates",  action="store_true",   help="Auto set dates to last N days")
+    parser.add_argument("--days",        type=int, default=1,   help="Number of days back for --auto-dates (default: 1)")
     args = parser.parse_args()
 
     # Load config
     with open(args.config) as f:
         config = json.load(f)
+
+    # Override dates if --auto-dates
+    if args.auto_dates:
+        from datetime import timedelta
+        today = datetime.utcnow().date()
+        date_to   = today
+        date_from = today - timedelta(days=args.days)
+        config["date_from"] = date_from.strftime("%Y-%m-%d")
+        config["date_to"]   = date_to.strftime("%Y-%m-%d")
+        log.info("Auto dates: %s → %s", config["date_from"], config["date_to"])
 
     output_dir = args.output_dir or config.get("output_dir", "data")
 
