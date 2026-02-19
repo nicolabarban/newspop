@@ -37,12 +37,8 @@ log = logging.getLogger(__name__)
 
 NEWSDATA_URL = "https://newsdata.io/api/1/news"
 
-# Query inviata a NewsData.io — operatori booleani supportati
-QUERY = (
-    "fertilità OR natalità OR denatalità OR "
-    "\"calo demografico\" OR \"invecchiamento popolazione\" OR "
-    "\"tasso di natalità\" OR infertilità OR fecondità"
-)
+# Query inviata a NewsData.io — max 100 caratteri sul piano gratuito
+QUERY = "fertilità OR natalità OR denatalità OR demografico OR infertilità OR fecondità"
 
 
 # ---------------------------------------------------------------------------
