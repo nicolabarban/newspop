@@ -41,11 +41,12 @@ jobs:
             --auto-dates \
             --days 7
 
-      # 5b. Scarica articoli italiani da NewsData.io (ultime 48h, grandi quotidiani)
+      # 5b. Scarica articoli italiani da NewsData.io (grandi quotidiani)
       - name: Fetch NewsData.io articles
+        continue-on-error: true   # non blocca il workflow se l'API fallisce
         env:
           NEWSDATA_API_KEY: ${{ secrets.NEWSDATA_API_KEY }}
-        run: python newsdata_pipeline.py --output-dir data --timeframe 48
+        run: python newsdata_pipeline.py --output-dir data
 
       # 6. Genera la rassegna stampa con Claude API (merge GDELT + NewsData) e invia per email
       - name: Generate digest with Claude + send email

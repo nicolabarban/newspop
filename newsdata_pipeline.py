@@ -50,13 +50,13 @@ QUERY = (
 # ---------------------------------------------------------------------------
 
 def fetch_articles(api_key: str, timeframe: int = 48, max_pages: int = 5) -> list[dict]:
-    """Fetch articles from NewsData.io (latest news endpoint)."""
+    """Fetch articles from NewsData.io (latest news endpoint, free plan)."""
+    # Free plan supports: q, language, country, category, domain, page
+    # timeframe requires a paid plan — not used here
     params = {
-        "apikey":    api_key,
-        "q":         QUERY,
-        "language":  "it",
-        "country":   "it",
-        "timeframe": timeframe,   # ore: 1–48 su piano gratuito
+        "apikey":   api_key,
+        "q":        QUERY,
+        "language": "it",
     }
 
     articles   = []
@@ -78,7 +78,10 @@ def fetch_articles(api_key: str, timeframe: int = 48, max_pages: int = 5) -> lis
             time.sleep(60)
             continue
 
-        resp.raise_for_status()
+        if not resp.ok:
+            log.error("NewsData HTTP %s: %s", resp.status_code, resp.text[:500])
+            break
+
         data = resp.json()
 
         if data.get("status") != "success":
