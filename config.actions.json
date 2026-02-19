@@ -1,7 +1,7 @@
 {
   "project_id": "gen-lang-client-0627950481",
   "keywords": ["fertilità", "natalità", "calo demografico", "denatalità", "tasso di natalità", "invecchiamento popolazione", "fertility", "birth rate", "demographic decline"],
-  "gdelt_themes": ["FERTILITY", "POPULATION_DECLINE", "ECON_BIRTHRATE"],
+  "gdelt_themes": ["FERTILITY", "POPULATION_DECLINE", "ECON_BIRTHRATE", "ECON_IMMIGRATION", "SOC_AGING"],
   "date_from": "2026-01-01",
   "date_to": "2026-01-02",
   "languages": ["Italian"],
