@@ -96,12 +96,27 @@ def generate_digest(articles: list[dict], date_from: str, date_to: str) -> str:
 # ---------------------------------------------------------------------------
 
 def load_latest_parquet(data_dir: str) -> pd.DataFrame:
-    parquet_files = sorted(Path(data_dir).glob("gdelt_*.parquet"), reverse=True)
-    if not parquet_files:
-        raise FileNotFoundError(f"No parquet files found in {data_dir}")
-    path = parquet_files[0]
-    log.info("Loading %s", path)
-    return pd.read_parquet(path), path
+    """Load and merge the latest GDELT parquet + any NewsData parquets from today."""
+    data_path = Path(data_dir)
+
+    # Latest GDELT file
+    gdelt_files = sorted(data_path.glob("gdelt_*.parquet"), reverse=True)
+    if not gdelt_files:
+        raise FileNotFoundError(f"No gdelt parquet files found in {data_dir}")
+
+    dfs = [pd.read_parquet(gdelt_files[0])]
+    log.info("GDELT: %s  (%d rows)", gdelt_files[0].name, len(dfs[0]))
+
+    # NewsData files from today (produced in the same workflow run)
+    today = datetime.now().strftime("%Y%m%d")
+    for f in sorted(data_path.glob(f"newsdata_{today}*.parquet"), reverse=True):
+        nd = pd.read_parquet(f)
+        log.info("NewsData: %s  (%d rows)", f.name, len(nd))
+        dfs.append(nd)
+
+    df = pd.concat(dfs, ignore_index=True).drop_duplicates(subset="url").reset_index(drop=True)
+    log.info("Merged: %d unique articles from %d source(s)", len(df), len(dfs))
+    return df, gdelt_files[0]
 
 
 # ---------------------------------------------------------------------------

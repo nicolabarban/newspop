@@ -46,6 +46,12 @@ jobs:
             --send-email \
             --email-to n.barban@unibo.it
 
+      # 5b. Scarica articoli da NewsData.io (ultime 24h)
+      - name: Fetch NewsData.io articles
+        env:
+          NEWSDATA_API_KEY: ${{ secrets.NEWSDATA_API_KEY }}
+        run: python newsdata_pipeline.py --output-dir data --timeframe 24
+
       # 6. Commit automatico dei risultati in data/
       - name: Commit results
         run: |

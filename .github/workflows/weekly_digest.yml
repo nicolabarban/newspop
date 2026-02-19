@@ -33,7 +33,7 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # 5. Scarica gli articoli degli ultimi 7 giorni (senza email)
+      # 5a. Scarica gli articoli degli ultimi 7 giorni da GDELT
       - name: Fetch 7-day GDELT data
         run: |
           python gdelt_pipeline.py \
@@ -41,7 +41,13 @@ jobs:
             --auto-dates \
             --days 7
 
-      # 6. Genera la rassegna stampa con Claude API e invia per email
+      # 5b. Scarica articoli italiani da NewsData.io (ultime 48h, grandi quotidiani)
+      - name: Fetch NewsData.io articles
+        env:
+          NEWSDATA_API_KEY: ${{ secrets.NEWSDATA_API_KEY }}
+        run: python newsdata_pipeline.py --output-dir data --timeframe 48
+
+      # 6. Genera la rassegna stampa con Claude API (merge GDELT + NewsData) e invia per email
       - name: Generate digest with Claude + send email
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -71,28 +77,23 @@ jobs:
 
           # Crea il post Jekyll con front matter (usa Python per gestire caratteri speciali)
           python3 - <<PYEOF
-          import pathlib, sys
+          import pathlib, textwrap
 
           date = "$DATE"
           src  = pathlib.Path("$LATEST").read_text(encoding="utf-8")
           lines = src.split("\n")
 
-          # Estrai titolo dall'H1
           title = lines[0].lstrip("# ").strip() if lines and lines[0].startswith("# ") else "Rassegna Stampa"
           title_esc = title.replace('"', '\\"')
-
-          # Corpo senza la riga H1
           body = "\n".join(lines[1:]).lstrip("\n")
 
-          front = f"""---
+          front = textwrap.dedent(f"""---
           layout: post
           title: "{title_esc}"
           date: {date}
           ---
 
-          """
-          import textwrap
-          front = textwrap.dedent(front)
+          """)
 
           pathlib.Path("/tmp/jekyll_post.md").write_text(front + body, encoding="utf-8")
           print(f"Jekyll post created: {title}")
