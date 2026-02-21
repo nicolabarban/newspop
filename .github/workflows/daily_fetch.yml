@@ -27,18 +27,13 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # 4. Esegui il pipeline, scarica full text e invia email con lista articoli
-      - name: Run GDELT pipeline + send email
-        env:
-          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
-          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+      # 4. Esegui il pipeline GDELT (solo dati, nessuna email)
+      - name: Run GDELT pipeline
         run: |
           python gdelt_pipeline.py \
             --config config.actions.json \
             --auto-dates \
-            --days 3 \
-            --send-email \
-            --email-to n.barban@unibo.it
+            --days 3
 
       # 5b. Scarica articoli da NewsData.io e invia email
       - name: Fetch NewsData.io articles + send email
