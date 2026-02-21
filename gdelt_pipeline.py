@@ -21,12 +21,16 @@ import logging
 import os
 import smtplib
 import ssl
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
+
+# gdeltdoc recurses when paginating large result sets; give it enough headroom
+sys.setrecursionlimit(5000)
 
 import pandas as pd
 import trafilatura
@@ -56,10 +60,7 @@ def run_gdeltdoc(config: dict) -> pd.DataFrame:
     languages    = config.get("languages", []) or []
     max_articles = config.get("max_articles", 500)
 
-    # Build keyword query string with OR
-    keyword_query = " OR ".join(f'"{k}"' for k in keywords) if keywords else None
-
-    all_dfs  = []
+    all_dfs   = []
     lang_list = languages if languages else [None]  # None = no language filter
 
     def _search(filters_kwargs: dict) -> pd.DataFrame:
@@ -69,12 +70,18 @@ def run_gdeltdoc(config: dict) -> pd.DataFrame:
             if not isinstance(df, pd.DataFrame):
                 return pd.DataFrame()
             return df
+        except RecursionError:
+            log.warning("GDELT DOC: recursion limit hit for %s — skipping", filters_kwargs)
+            return pd.DataFrame()
         except Exception as exc:
             log.warning("GDELT DOC query failed (%s): %s", filters_kwargs, exc)
             return pd.DataFrame()
 
-    # Keyword queries (one per language)
-    if keyword_query:
+    # Keyword queries — GDELT API accepts at most 3 keyphrases per request
+    BATCH = 3
+    keyword_batches = [keywords[i:i+BATCH] for i in range(0, len(keywords), BATCH)]
+    for batch in keyword_batches:
+        keyword_query = " OR ".join(f'"{k}"' for k in batch)
         for lang in lang_list:
             kwargs = dict(keyword=keyword_query, start_date=date_from, end_date=date_to)
             if lang:
