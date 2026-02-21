@@ -1,7 +1,5 @@
-google-cloud-bigquery
-google-cloud-bigquery-storage
+gdeltdoc
 pandas
-pandas-gbq
 pyarrow
 trafilatura
 tqdm

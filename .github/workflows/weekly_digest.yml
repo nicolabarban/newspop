@@ -27,13 +27,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # 4. Autentica Google Cloud con Service Account
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      # 5a. Scarica gli articoli degli ultimi 7 giorni da GDELT
+      # 4. Scarica gli articoli degli ultimi 7 giorni da GDELT
       - name: Fetch 7-day GDELT data
         run: |
           python gdelt_pipeline.py \
