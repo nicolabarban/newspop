@@ -32,7 +32,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-MODEL    = "claude-sonnet-4-5-20251022"
+MODEL    = "claude-haiku-4-5-20251001"
 MAX_CHARS_PER_ARTICLE = 2000   # truncate long articles before sending to API
 
 
