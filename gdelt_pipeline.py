@@ -60,8 +60,22 @@ def run_gdeltdoc(config: dict) -> pd.DataFrame:
     languages    = config.get("languages", []) or []
     max_articles = config.get("max_articles", 500)
 
-    all_dfs   = []
-    lang_list = languages if languages else [None]  # None = no language filter
+    # Map language names to FIPS-2 country codes for theme queries
+    # (country filter is more reliable than language filter in GDELT DOC 2.0)
+    LANGUAGE_TO_COUNTRY = {
+        "Italian": "IT", "German": "GM", "French": "FR",
+        "Spanish": "SP", "Portuguese": "PO",
+    }
+    country_list = [LANGUAGE_TO_COUNTRY[l] for l in languages if l in LANGUAGE_TO_COUNTRY]
+    country_filter_list = country_list if country_list else [None]
+
+    # Only keep ASCII-safe keywords — GDELT API rejects accented characters
+    ascii_keywords = [k for k in keywords if k.isascii()]
+    skipped = set(keywords) - set(ascii_keywords)
+    if skipped:
+        log.info("Skipping non-ASCII keywords (not supported by API): %s", skipped)
+
+    all_dfs = []
 
     def _search(filters_kwargs: dict) -> pd.DataFrame:
         try:
@@ -79,27 +93,27 @@ def run_gdeltdoc(config: dict) -> pd.DataFrame:
 
     # Keyword queries — GDELT API accepts at most 3 keyphrases per request
     BATCH = 3
-    keyword_batches = [keywords[i:i+BATCH] for i in range(0, len(keywords), BATCH)]
+    keyword_batches = [ascii_keywords[i:i+BATCH] for i in range(0, len(ascii_keywords), BATCH)]
     for batch in keyword_batches:
         keyword_query = " OR ".join(f'"{k}"' for k in batch)
-        for lang in lang_list:
+        for country in country_filter_list:
             kwargs = dict(keyword=keyword_query, start_date=date_from, end_date=date_to)
-            if lang:
-                kwargs["language"] = lang
-            log.info("Keyword query [lang=%s]: %s", lang or "any", keyword_query[:80])
+            if country:
+                kwargs["country"] = country
+            log.info("Keyword query [country=%s]: %s", country or "any", keyword_query[:80])
             df = _search(kwargs)
             if not df.empty:
                 log.info("  → %d results", len(df))
                 all_dfs.append(df)
             time.sleep(0.5)  # be polite to the free API
 
-    # Theme queries (one per theme × language)
+    # Theme queries — use country filter (more reliable than language for GDELT DOC 2.0)
     for theme in themes:
-        for lang in lang_list:
+        for country in country_filter_list:
             kwargs = dict(theme=theme, start_date=date_from, end_date=date_to)
-            if lang:
-                kwargs["language"] = lang
-            log.info("Theme query [%s | lang=%s]", theme, lang or "any")
+            if country:
+                kwargs["country"] = country
+            log.info("Theme query [%s | country=%s]", theme, country or "any")
             df = _search(kwargs)
             if not df.empty:
                 log.info("  → %d results", len(df))
