@@ -111,7 +111,13 @@ def generate_digest(articles: list[dict], date_from: str, date_to: str) -> str:
     for result in client.messages.batches.results(batch.id):
         if result.custom_id == "weekly-digest":
             if result.result.type == "succeeded":
-                return result.result.message.content[0].text
+                msg   = result.result.message
+                usage = msg.usage
+                # Haiku 4.5 batch pricing: $0.40/MTok input, $2.00/MTok output
+                cost  = usage.input_tokens / 1_000_000 * 0.40 + usage.output_tokens / 1_000_000 * 2.00
+                log.info("Tokens — input: %d  output: %d  | estimated cost: $%.5f",
+                         usage.input_tokens, usage.output_tokens, cost)
+                return msg.content[0].text
             raise RuntimeError(f"Batch request failed: {result.result}")
 
     raise RuntimeError("No result found in batch response")
