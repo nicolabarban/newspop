@@ -20,6 +20,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
+import time
+
 import anthropic
 import pandas as pd
 
@@ -30,7 +32,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-MODEL    = "claude-sonnet-4-6"
+MODEL    = "claude-sonnet-4-5-20251022"
 MAX_CHARS_PER_ARTICLE = 2000   # truncate long articles before sending to API
 
 
@@ -73,22 +75,46 @@ def build_user_prompt(articles: list[dict], date_from: str, date_to: str) -> str
 
 
 # ---------------------------------------------------------------------------
-# Call Claude API
+# Call Claude API via Batch (50% cheaper than synchronous requests)
 # ---------------------------------------------------------------------------
 
 def generate_digest(articles: list[dict], date_from: str, date_to: str) -> str:
     client = anthropic.Anthropic()   # reads ANTHROPIC_API_KEY from env
 
     user_prompt = build_user_prompt(articles, date_from, date_to)
-    log.info("Sending %d articles to Claude (%s)...", len(articles), MODEL)
+    log.info("Submitting batch request: %d articles → Claude %s...", len(articles), MODEL)
 
-    message = client.messages.create(
-        model=MODEL,
-        max_tokens=4096,
-        messages=[{"role": "user", "content": user_prompt}],
-        system=SYSTEM_PROMPT,
+    batch = client.messages.batches.create(
+        requests=[{
+            "custom_id": "weekly-digest",
+            "params": {
+                "model":      MODEL,
+                "max_tokens": 4096,
+                "system":     SYSTEM_PROMPT,
+                "messages":   [{"role": "user", "content": user_prompt}],
+            },
+        }]
     )
-    return message.content[0].text
+    log.info("Batch submitted: %s — polling for results...", batch.id)
+
+    # Poll until complete (max 20 minutes; batches usually finish in 1-3 min)
+    for attempt in range(40):
+        time.sleep(30)
+        batch = client.messages.batches.retrieve(batch.id)
+        log.info("Batch status [%d/40]: %s", attempt + 1, batch.processing_status)
+        if batch.processing_status == "ended":
+            break
+    else:
+        raise TimeoutError("Batch did not complete within 20 minutes")
+
+    # Retrieve result
+    for result in client.messages.batches.results(batch.id):
+        if result.custom_id == "weekly-digest":
+            if result.result.type == "succeeded":
+                return result.result.message.content[0].text
+            raise RuntimeError(f"Batch request failed: {result.result}")
+
+    raise RuntimeError("No result found in batch response")
 
 
 # ---------------------------------------------------------------------------
