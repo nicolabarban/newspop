@@ -15,7 +15,7 @@ import logging
 import os
 import smtplib
 import ssl
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -151,6 +151,15 @@ def load_latest_parquet(data_dir: str) -> pd.DataFrame:
     return df, gdelt_files[0]
 
 
+def filter_recent(df: pd.DataFrame, days: int) -> pd.DataFrame:
+    """Keep only articles whose date_str falls within the last `days` days."""
+    cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y%m%d")
+    mask = df["date_str"].dropna().str[:8] >= cutoff
+    filtered = df[mask].reset_index(drop=True)
+    log.info("Date filter (last %d days, cutoff %s): %d → %d articles", days, cutoff, len(df), len(filtered))
+    return filtered
+
+
 # ---------------------------------------------------------------------------
 # Save output
 # ---------------------------------------------------------------------------
@@ -212,6 +221,7 @@ def main():
     parser.add_argument("--parquet",    default=None,    help="Use a specific parquet file")
     parser.add_argument("--send-email", action="store_true", help="Send digest via email")
     parser.add_argument("--email-to",   default="n.barban@unibo.it", help="Recipient email address")
+    parser.add_argument("--days",       type=int, default=7, help="Include only articles from the last N days (default: 7)")
     args = parser.parse_args()
 
     # Load data
@@ -220,6 +230,9 @@ def main():
         path = Path(args.parquet)
     else:
         df, path = load_latest_parquet(args.data_dir)
+
+    # Restrict to the last N days
+    df = filter_recent(df, days=args.days)
 
     # Filter articles with full text
     df_ok = df[df["full_text"].notna()].reset_index(drop=True)

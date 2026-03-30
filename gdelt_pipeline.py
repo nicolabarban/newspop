@@ -212,9 +212,8 @@ def save_results(df: pd.DataFrame, output_dir: str, tag: str = "") -> None:
 
 def build_email_summary(df: pd.DataFrame, date_from: str, date_to: str) -> tuple[str, str, str]:
     """Build plain-text + HTML email summary of the daily fetch results."""
-    df_ok     = df[df["full_text"].notna()] if "full_text" in df.columns else df
-    total     = len(df)
-    with_text = len(df_ok)
+    total = len(df)
+    with_text = int(df["full_text"].notna().sum()) if "full_text" in df.columns else 0
 
     lines_plain = [
         f"GDELT Daily Digest — {date_from} → {date_to}",
@@ -222,24 +221,35 @@ def build_email_summary(df: pd.DataFrame, date_from: str, date_to: str) -> tuple
         "=" * 60,
     ]
     lines_html = [
+        "<html><body>",
         f"<h2>GDELT Daily Digest — {date_from} → {date_to}</h2>",
         f"<p><b>Articoli trovati:</b> {total} &nbsp;|&nbsp; <b>Con full text:</b> {with_text}</p>",
         "<hr>",
     ]
 
-    for _, r in df_ok.iterrows():
-        text    = str(r.get("full_text") or r.get("title") or "")
-        snippet = text[:300].replace("\n", " ").strip()
-        source  = r.get("source", "")
-        url     = r.get("url", "")
-        lines_plain.append(f"\n[{source}]\n{url}\n{snippet}...\n")
-        lines_html.append(
-            f"<p><b>[{source}]</b><br>"
-            f"<a href='{url}'>{url[:80]}</a><br>"
-            f"{snippet}...</p><hr>"
-        )
+    for _, r in df.iterrows():
+        ft = r.get("full_text")
+        source = r.get("source", "")
+        url = r.get("url", "")
+        if ft and str(ft).strip():
+            snippet = str(ft)[:300].replace("\n", " ").strip()
+            plain_entry = f"\n[{source}]\n{url}\n{snippet}...\n"
+            html_entry = (
+                f"<p><b>[{source}]</b><br>"
+                f"<a href='{url}'>{url[:80]}</a><br>"
+                f"{snippet}...</p><hr>"
+            )
+        else:
+            plain_entry = f"\n[{source}]\n{url}\n"
+            html_entry = (
+                f"<p><b>[{source}]</b><br>"
+                f"<a href='{url}'>{url[:80]}</a></p><hr>"
+            )
+        lines_plain.append(plain_entry)
+        lines_html.append(html_entry)
 
-    subject    = f"[newspop] {total} articoli su fertilità — {date_from}"
+    lines_html.append("</body></html>")
+    subject = f"[newspop] {total} articoli su fertilità — {date_from}"
     body_plain = "\n".join(lines_plain)
     body_html  = "\n".join(lines_html)
     return subject, body_plain, body_html
@@ -252,7 +262,7 @@ def write_summary_file(subject: str, body_plain: str, output_dir: str) -> None:
     log.info("Email summary written to %s/latest_*.txt", output_dir)
 
 
-def send_email(subject: str, body_plain: str, to_addr: str) -> None:
+def send_email(subject: str, body_plain: str, to_addr: str, body_html: str = "") -> None:
     """Send email via Gmail SMTP. Needs MAIL_USERNAME and MAIL_PASSWORD env vars."""
     username = os.environ.get("MAIL_USERNAME")
     password = os.environ.get("MAIL_PASSWORD")
@@ -265,6 +275,8 @@ def send_email(subject: str, body_plain: str, to_addr: str) -> None:
     msg["From"]    = f"newspop-bot <{username}>"
     msg["To"]      = to_addr
     msg.attach(MIMEText(body_plain, "plain", "utf-8"))
+    if body_html:
+        msg.attach(MIMEText(body_html, "html", "utf-8"))
 
     context = ssl.create_default_context()
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as smtp:
@@ -315,11 +327,13 @@ def main():
     # 3. Save
     save_results(df, output_dir)
 
-    # 4. Email
-    subject, body_plain, _ = build_email_summary(df, config["date_from"], config["date_to"])
+    # 4. Build email summary and optionally send
+    subject, body_plain, body_html = build_email_summary(
+        df, config["date_from"], config["date_to"]
+    )
     write_summary_file(subject, body_plain, output_dir)
     if args.send_email:
-        send_email(subject, body_plain, args.email_to)
+        send_email(subject, body_plain, args.email_to, body_html)
 
 
 if __name__ == "__main__":
