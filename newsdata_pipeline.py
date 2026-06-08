@@ -40,6 +40,9 @@ NEWSDATA_URL = "https://newsdata.io/api/1/news"
 # Query inviata a NewsData.io — max 100 caratteri sul piano gratuito
 QUERY = "fertilità OR natalità OR denatalità OR demografico OR infertilità OR fecondità"
 
+# NewsData free plan returns this stub instead of article body
+PAYWALL_STUB = "ONLY AVAILABLE IN PAID PLANS"
+
 
 # ---------------------------------------------------------------------------
 # Fetch
@@ -101,12 +104,25 @@ def fetch_articles(api_key: str, timeframe: int = 48, max_pages: int = 5) -> lis
 # Normalize to shared schema
 # ---------------------------------------------------------------------------
 
+def _clean_content(raw_content: str | None) -> str:
+    """Drop the free-plan paywall stub; return empty string if unusable."""
+    content = (raw_content or "").strip()
+    if not content or PAYWALL_STUB in content:
+        return ""
+    return content
+
+
 def normalize(raw: list[dict]) -> pd.DataFrame:
-    """Convert NewsData.io results to the shared pipeline schema."""
+    """Convert NewsData.io results to the shared pipeline schema.
+
+    On the free plan, `content` is the paywall stub — we drop it and keep
+    `description` as a seed. Real body text is hydrated later via trafilatura.
+    """
     rows = []
     for a in raw:
-        # Preferisce content (testo completo), poi description (sommario)
-        text = (a.get("content") or a.get("description") or "").strip()
+        content     = _clean_content(a.get("content"))
+        description = (a.get("description") or "").strip()
+        seed_text   = content or description
 
         # pubDate formato "YYYY-MM-DD HH:MM:SS" → YYYYMMDDHHMMSS
         pub = (a.get("pubDate") or "").replace("-", "").replace(" ", "").replace(":", "")
@@ -121,12 +137,27 @@ def normalize(raw: list[dict]) -> pd.DataFrame:
             "organizations":    "",
             "tone":             "",
             "translation_info": "srclc:ita",
-            "full_text":        text if text else None,
+            "description":      description,
+            "full_text":        seed_text if seed_text else None,
         })
 
     df = pd.DataFrame(rows)
     df = df[df["url"] != ""].drop_duplicates(subset="url").reset_index(drop=True)
     return df
+
+
+def hydrate_full_text(df: pd.DataFrame, workers: int = 8) -> pd.DataFrame:
+    """Download article bodies via trafilatura; fall back to description."""
+    if df.empty:
+        return df
+    from gdelt_pipeline import add_full_text  # lazy: trafilatura optional at import time
+    df = add_full_text(df, workers=workers)
+    # Where trafilatura returned nothing, fall back to the API description
+    if "description" in df.columns:
+        fallback = df["full_text"].isna() & df["description"].astype(bool)
+        df.loc[fallback, "full_text"] = df.loc[fallback, "description"]
+        log.info("Fell back to description for %d articles", int(fallback.sum()))
+    return df.drop(columns=["description"], errors="ignore")
 
 
 # ---------------------------------------------------------------------------
@@ -188,11 +219,13 @@ def send_summary_email(df: pd.DataFrame, to_addr: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Fetch Italian news from NewsData.io")
-    parser.add_argument("--output-dir", default="data",              help="Output directory")
-    parser.add_argument("--timeframe",  type=int, default=48,        help="Hours to look back (1-48, default: 48)")
-    parser.add_argument("--max-pages",  type=int, default=5,         help="Max API pages to fetch")
-    parser.add_argument("--send-email", action="store_true",         help="Send summary email")
-    parser.add_argument("--email-to",   default="n.barban@unibo.it", help="Recipient address")
+    parser.add_argument("--output-dir",  default="data",              help="Output directory")
+    parser.add_argument("--timeframe",   type=int, default=48,        help="Hours to look back (1-48, default: 48)")
+    parser.add_argument("--max-pages",   type=int, default=5,         help="Max API pages to fetch")
+    parser.add_argument("--send-email",  action="store_true",         help="Send summary email")
+    parser.add_argument("--email-to",    default="n.barban@unibo.it", help="Recipient address")
+    parser.add_argument("--no-fulltext", action="store_true",         help="Skip trafilatura hydration (faster, for testing)")
+    parser.add_argument("--workers",     type=int, default=8,         help="Trafilatura worker threads")
     args = parser.parse_args()
 
     api_key = os.environ.get("NEWSDATA_API_KEY")
@@ -206,8 +239,15 @@ def main():
         return
 
     df = normalize(raw)
-    log.info("Unique articles: %d  |  with full text: %d",
+    log.info("Unique articles: %d  |  with seed text: %d",
              len(df), df["full_text"].notna().sum())
+
+    if not args.no_fulltext:
+        df = hydrate_full_text(df, workers=args.workers)
+        log.info("After hydration: %d / %d have full text",
+                 int(df["full_text"].notna().sum()), len(df))
+    else:
+        df = df.drop(columns=["description"], errors="ignore")
 
     save_results(df, args.output_dir)
 
