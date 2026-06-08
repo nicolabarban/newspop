@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: '0 6 * * 1'   # ogni lunedì alle 06:00 UTC (08:00 ora italiana)
   workflow_dispatch:        # run manuale dal sito GitHub (tasto "Run workflow")
+    inputs:
+      publish_to_blog:
+        description: 'Publish the digest to gh-pages (the public blog)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   digest:
@@ -65,7 +74,10 @@ jobs:
           git push
 
       # 8. Pubblica il post sul blog DemoRumors (branch gh-pages)
+      #    Scheduled Monday runs publish automatically; manual runs publish only
+      #    when the publish_to_blog input is 'true'.
       - name: Publish to DemoRumors blog (gh-pages)
+        if: ${{ github.event_name == 'schedule' || inputs.publish_to_blog == 'true' }}
         run: |
           DATE=$(date -u +%Y-%m-%d)
           LATEST=$(ls -t posts/*_digest.md | head -1)
