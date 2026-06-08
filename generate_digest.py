@@ -53,11 +53,20 @@ Regole:
 - Output: solo il testo Markdown della rassegna, senza commenti aggiuntivi
 """
 
+def _to_it_date(iso: str) -> str:
+    """Convert YYYY-MM-DD → DD/MM/YYYY for the digest title."""
+    y, m, d = iso.split("-")
+    return f"{d}/{m}/{y}"
+
+
 def build_user_prompt(articles: list[dict], date_from: str, date_to: str) -> str:
+    title_from = _to_it_date(date_from)
+    title_to   = _to_it_date(date_to)
     lines = [
         f"Ecco {len(articles)} articoli raccolti dal {date_from} al {date_to}.",
         "Scrivi una rassegna stampa settimanale in italiano in formato Markdown.",
-        "Titolo: **Fertilità e Calo Demografico — Rassegna Stampa {date_from} / {date_to}**",
+        f"Titolo: **Fertilità e Calo Demografico — Rassegna Stampa {title_from} / {title_to}**",
+        "Le date nel titolo devono corrispondere esattamente all'intervallo di consultazione indicato qui sopra, non al primo/ultimo articolo elencato.",
         "",
         "--- ARTICOLI ---",
         "",
@@ -242,12 +251,13 @@ def main():
         log.warning("No articles with full text — skipping digest generation.")
         return
 
-    # Infer date range from data
-    dates = df_ok["date_str"].dropna().sort_values()
-    date_from = dates.iloc[0][:8]
-    date_to   = dates.iloc[-1][:8]
-    date_from_fmt = f"{date_from[:4]}-{date_from[4:6]}-{date_from[6:8]}"
-    date_to_fmt   = f"{date_to[:4]}-{date_to[4:6]}-{date_to[6:8]}"
+    # Title reflects the consultation window (today - N days → today), not
+    # the min/max date of articles that happened to be returned. The latter
+    # would mislabel the digest whenever a source skips a day.
+    today           = datetime.utcnow().date()
+    date_to_fmt     = today.strftime("%Y-%m-%d")
+    date_from_fmt   = (today - timedelta(days=args.days)).strftime("%Y-%m-%d")
+    log.info("Consultation window: %s → %s (%d days)", date_from_fmt, date_to_fmt, args.days)
 
     articles = df_ok[["source", "date_str", "url", "full_text"]].to_dict("records")
 
